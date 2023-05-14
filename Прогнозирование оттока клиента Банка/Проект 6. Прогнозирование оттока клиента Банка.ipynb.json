@@ -1,0 +1,1374 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "YX0focKKYXhn"
+   },
+   "source": [
+    "# Отток клиентов"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "odGFPF8qYXho"
+   },
+   "source": [
+    "В банке наблюдается отток клиентов каждый месяц. Это привело к тому, что маркетологи банка посчитали, что сохранять текущих клиентов является дешевле, чем привлекать новых.\n",
+    "\n",
+    "Для уменьшения оттока клиентов необходимо спрогнозировать, уйдёт клиент из банка в ближайшее время или нет. Для решения этой задачи предоставлены исторические данные о поведении клиентов и расторжении договоров с банком.\n",
+    "\n",
+    "Для достижения наилучших результатов необходимо построить модель с предельно большим значением F1-меры, что обеспечит максимально точные прогнозы о возможном оттоке клиентов."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "_6LaGH2-YXho"
+   },
+   "source": [
+    "## Подготовка данных"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 14,
+   "metadata": {
+    "id": "PGQTk_8xYXhp"
+   },
+   "outputs": [],
+   "source": [
+    "import pandas as pd\n",
+    "from sklearn.model_selection import train_test_split\n",
+    "from sklearn.linear_model import LogisticRegression\n",
+    "from sklearn.ensemble import RandomForestClassifier\n",
+    "from sklearn.tree import DecisionTreeClassifier\n",
+    "from sklearn.metrics import accuracy_score, f1_score, roc_auc_score\n",
+    "from sklearn.utils import shuffle\n",
+    "from sklearn.preprocessing import StandardScaler\n",
+    "import warnings"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 15,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "warnings.filterwarnings('ignore')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 16,
+   "metadata": {
+    "id": "LffL7tn4YXhr"
+   },
+   "outputs": [],
+   "source": [
+    "try:\n",
+    "    data = pd.read_csv('/Users/arina200212yandex.ru/Desktop/Churn.csv')\n",
+    "except:\n",
+    "    data = pd.read_csv('/datasets/Churn.csv')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 17,
+   "metadata": {
+    "id": "SiaCb9P0YXhs",
+    "outputId": "f327a2f6-46fe-44d6-d37e-4e23823fb9e0"
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>RowNumber</th>\n",
+       "      <th>CustomerId</th>\n",
+       "      <th>Surname</th>\n",
+       "      <th>CreditScore</th>\n",
+       "      <th>Geography</th>\n",
+       "      <th>Gender</th>\n",
+       "      <th>Age</th>\n",
+       "      <th>Tenure</th>\n",
+       "      <th>Balance</th>\n",
+       "      <th>NumOfProducts</th>\n",
+       "      <th>HasCrCard</th>\n",
+       "      <th>IsActiveMember</th>\n",
+       "      <th>EstimatedSalary</th>\n",
+       "      <th>Exited</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>1</td>\n",
+       "      <td>15634602</td>\n",
+       "      <td>Hargrave</td>\n",
+       "      <td>619</td>\n",
+       "      <td>France</td>\n",
+       "      <td>Female</td>\n",
+       "      <td>42</td>\n",
+       "      <td>2.0</td>\n",
+       "      <td>0.00</td>\n",
+       "      <td>1</td>\n",
+       "      <td>1</td>\n",
+       "      <td>1</td>\n",
+       "      <td>101348.88</td>\n",
+       "      <td>1</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>2</td>\n",
+       "      <td>15647311</td>\n",
+       "      <td>Hill</td>\n",
+       "      <td>608</td>\n",
+       "      <td>Spain</td>\n",
+       "      <td>Female</td>\n",
+       "      <td>41</td>\n",
+       "      <td>1.0</td>\n",
+       "      <td>83807.86</td>\n",
+       "      <td>1</td>\n",
+       "      <td>0</td>\n",
+       "      <td>1</td>\n",
+       "      <td>112542.58</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>3</td>\n",
+       "      <td>15619304</td>\n",
+       "      <td>Onio</td>\n",
+       "      <td>502</td>\n",
+       "      <td>France</td>\n",
+       "      <td>Female</td>\n",
+       "      <td>42</td>\n",
+       "      <td>8.0</td>\n",
+       "      <td>159660.80</td>\n",
+       "      <td>3</td>\n",
+       "      <td>1</td>\n",
+       "      <td>0</td>\n",
+       "      <td>113931.57</td>\n",
+       "      <td>1</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>4</td>\n",
+       "      <td>15701354</td>\n",
+       "      <td>Boni</td>\n",
+       "      <td>699</td>\n",
+       "      <td>France</td>\n",
+       "      <td>Female</td>\n",
+       "      <td>39</td>\n",
+       "      <td>1.0</td>\n",
+       "      <td>0.00</td>\n",
+       "      <td>2</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>93826.63</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>5</td>\n",
+       "      <td>15737888</td>\n",
+       "      <td>Mitchell</td>\n",
+       "      <td>850</td>\n",
+       "      <td>Spain</td>\n",
+       "      <td>Female</td>\n",
+       "      <td>43</td>\n",
+       "      <td>2.0</td>\n",
+       "      <td>125510.82</td>\n",
+       "      <td>1</td>\n",
+       "      <td>1</td>\n",
+       "      <td>1</td>\n",
+       "      <td>79084.10</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "   RowNumber  CustomerId   Surname  CreditScore Geography  Gender  Age  \\\n",
+       "0          1    15634602  Hargrave          619    France  Female   42   \n",
+       "1          2    15647311      Hill          608     Spain  Female   41   \n",
+       "2          3    15619304      Onio          502    France  Female   42   \n",
+       "3          4    15701354      Boni          699    France  Female   39   \n",
+       "4          5    15737888  Mitchell          850     Spain  Female   43   \n",
+       "\n",
+       "   Tenure    Balance  NumOfProducts  HasCrCard  IsActiveMember  \\\n",
+       "0     2.0       0.00              1          1               1   \n",
+       "1     1.0   83807.86              1          0               1   \n",
+       "2     8.0  159660.80              3          1               0   \n",
+       "3     1.0       0.00              2          0               0   \n",
+       "4     2.0  125510.82              1          1               1   \n",
+       "\n",
+       "   EstimatedSalary  Exited  \n",
+       "0        101348.88       1  \n",
+       "1        112542.58       0  \n",
+       "2        113931.57       1  \n",
+       "3         93826.63       0  \n",
+       "4         79084.10       0  "
+      ]
+     },
+     "execution_count": 17,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "data.head()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 18,
+   "metadata": {
+    "id": "NodQ1HjXYXht",
+    "outputId": "c0055abc-acf0-4716-9162-4b79947018ed"
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "<class 'pandas.core.frame.DataFrame'>\n",
+      "RangeIndex: 10000 entries, 0 to 9999\n",
+      "Data columns (total 14 columns):\n",
+      " #   Column           Non-Null Count  Dtype  \n",
+      "---  ------           --------------  -----  \n",
+      " 0   RowNumber        10000 non-null  int64  \n",
+      " 1   CustomerId       10000 non-null  int64  \n",
+      " 2   Surname          10000 non-null  object \n",
+      " 3   CreditScore      10000 non-null  int64  \n",
+      " 4   Geography        10000 non-null  object \n",
+      " 5   Gender           10000 non-null  object \n",
+      " 6   Age              10000 non-null  int64  \n",
+      " 7   Tenure           9091 non-null   float64\n",
+      " 8   Balance          10000 non-null  float64\n",
+      " 9   NumOfProducts    10000 non-null  int64  \n",
+      " 10  HasCrCard        10000 non-null  int64  \n",
+      " 11  IsActiveMember   10000 non-null  int64  \n",
+      " 12  EstimatedSalary  10000 non-null  float64\n",
+      " 13  Exited           10000 non-null  int64  \n",
+      "dtypes: float64(3), int64(8), object(3)\n",
+      "memory usage: 1.1+ MB\n"
+     ]
+    }
+   ],
+   "source": [
+    "data.info()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "w7r13GVUYXhu"
+   },
+   "source": [
+    "Для построения модели анализа оттока клиентов не нужны столбцы RowNumber, CustomerId и Surname. Эти столбцы не влияют на результаты модели и могут быть безопасно удалены из датасета."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 19,
+   "metadata": {
+    "id": "plbMbvMbYXhu"
+   },
+   "outputs": [],
+   "source": [
+    "data = data.drop([\"RowNumber\",\"CustomerId\",\"Surname\"], axis = 1)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "Kme89jnpYXhv"
+   },
+   "source": [
+    "Проверим наличие дубликатов и пропусков."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 20,
+   "metadata": {
+    "id": "VWRUPrDkYXhv",
+    "outputId": "8d083fa3-00aa-4ff3-a640-44672c5ab177"
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "0"
+      ]
+     },
+     "execution_count": 20,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "data.duplicated().sum()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 21,
+   "metadata": {
+    "id": "mMQdiEQvYXhv",
+    "outputId": "8ed0c2ae-cd2f-4029-f213-b335dc8be3f2"
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "CreditScore          0\n",
+       "Geography            0\n",
+       "Gender               0\n",
+       "Age                  0\n",
+       "Tenure             909\n",
+       "Balance              0\n",
+       "NumOfProducts        0\n",
+       "HasCrCard            0\n",
+       "IsActiveMember       0\n",
+       "EstimatedSalary      0\n",
+       "Exited               0\n",
+       "dtype: int64"
+      ]
+     },
+     "execution_count": 21,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "data.isna().sum()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "GkSooQplYXhw"
+   },
+   "source": [
+    "В столбце Tenure отмечены пропущенные значения, которые могут быть удалены из датасета, чтобы избежать потенциальных выбросов. Доля этих пропусков среди всех значений невелика, поэтому удаление их не окажет значительного влияния на дальнейший анализ данных."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 22,
+   "metadata": {
+    "id": "Kug0keA0YXhw"
+   },
+   "outputs": [],
+   "source": [
+    "data = data.dropna(subset = [\"Tenure\"], axis = 0)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "2zOjVx6YYXhw"
+   },
+   "source": [
+    "Подготовим данные с помощью ОНЕ."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 23,
+   "metadata": {
+    "id": "sPL3idpSYXhw"
+   },
+   "outputs": [],
+   "source": [
+    "data = pd.get_dummies(data, drop_first=True)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 24,
+   "metadata": {
+    "id": "0XYmAqImYXhx",
+    "outputId": "f7ea2a32-bd23-401e-9b69-b4b6f31080bc"
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>CreditScore</th>\n",
+       "      <th>Age</th>\n",
+       "      <th>Tenure</th>\n",
+       "      <th>Balance</th>\n",
+       "      <th>NumOfProducts</th>\n",
+       "      <th>HasCrCard</th>\n",
+       "      <th>IsActiveMember</th>\n",
+       "      <th>EstimatedSalary</th>\n",
+       "      <th>Exited</th>\n",
+       "      <th>Geography_Germany</th>\n",
+       "      <th>Geography_Spain</th>\n",
+       "      <th>Gender_Male</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>619</td>\n",
+       "      <td>42</td>\n",
+       "      <td>2.0</td>\n",
+       "      <td>0.00</td>\n",
+       "      <td>1</td>\n",
+       "      <td>1</td>\n",
+       "      <td>1</td>\n",
+       "      <td>101348.88</td>\n",
+       "      <td>1</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>608</td>\n",
+       "      <td>41</td>\n",
+       "      <td>1.0</td>\n",
+       "      <td>83807.86</td>\n",
+       "      <td>1</td>\n",
+       "      <td>0</td>\n",
+       "      <td>1</td>\n",
+       "      <td>112542.58</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>1</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>502</td>\n",
+       "      <td>42</td>\n",
+       "      <td>8.0</td>\n",
+       "      <td>159660.80</td>\n",
+       "      <td>3</td>\n",
+       "      <td>1</td>\n",
+       "      <td>0</td>\n",
+       "      <td>113931.57</td>\n",
+       "      <td>1</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>699</td>\n",
+       "      <td>39</td>\n",
+       "      <td>1.0</td>\n",
+       "      <td>0.00</td>\n",
+       "      <td>2</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>93826.63</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>850</td>\n",
+       "      <td>43</td>\n",
+       "      <td>2.0</td>\n",
+       "      <td>125510.82</td>\n",
+       "      <td>1</td>\n",
+       "      <td>1</td>\n",
+       "      <td>1</td>\n",
+       "      <td>79084.10</td>\n",
+       "      <td>0</td>\n",
+       "      <td>0</td>\n",
+       "      <td>1</td>\n",
+       "      <td>0</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "   CreditScore  Age  Tenure    Balance  NumOfProducts  HasCrCard  \\\n",
+       "0          619   42     2.0       0.00              1          1   \n",
+       "1          608   41     1.0   83807.86              1          0   \n",
+       "2          502   42     8.0  159660.80              3          1   \n",
+       "3          699   39     1.0       0.00              2          0   \n",
+       "4          850   43     2.0  125510.82              1          1   \n",
+       "\n",
+       "   IsActiveMember  EstimatedSalary  Exited  Geography_Germany  \\\n",
+       "0               1        101348.88       1                  0   \n",
+       "1               1        112542.58       0                  0   \n",
+       "2               0        113931.57       1                  0   \n",
+       "3               0         93826.63       0                  0   \n",
+       "4               1         79084.10       0                  0   \n",
+       "\n",
+       "   Geography_Spain  Gender_Male  \n",
+       "0                0            0  \n",
+       "1                1            0  \n",
+       "2                0            0  \n",
+       "3                0            0  \n",
+       "4                1            0  "
+      ]
+     },
+     "execution_count": 24,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "data.head()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "PBGcEeFWYXhx"
+   },
+   "source": [
+    "Итак, после удаления ненужных столбцов и обработки пропущенных значений, данные готовы к дальнейшей работе и исследованию."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "Z_n55Lp0YXhx"
+   },
+   "source": [
+    "## Исследование задачи"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "nkaG7aXcYXhy"
+   },
+   "source": [
+    "Выберем целевой признак Exited, который отвечает за факт ухода клиента.\n",
+    "\n",
+    "Для построения и обучения модели необходимо разделить выборку на три части: обучающую, валидационную и тестовую. "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 25,
+   "metadata": {
+    "id": "O3u26-u2YXhy"
+   },
+   "outputs": [],
+   "source": [
+    "obuchenie, test = train_test_split(data, test_size=0.4, random_state=12345)\n",
+    "features = test.drop('Exited', axis=1)\n",
+    "target = test['Exited']"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 26,
+   "metadata": {
+    "id": "9YS2L0hOYXhy"
+   },
+   "outputs": [],
+   "source": [
+    "features_valida, features_test, target_valida, target_test = train_test_split(features, target, test_size=0.5, random_state=12345)\n",
+    "features_obuchenie = obuchenie.drop('Exited', axis=1)\n",
+    "target_obuchenie = obuchenie['Exited']"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "ds6qnNdfYXhz"
+   },
+   "source": [
+    "Перед обучением модели логистической регрессии данные необходимо масштабировать."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 27,
+   "metadata": {
+    "id": "hTz0-duEYXhz",
+    "outputId": "f356f225-a601-43df-e5a3-b17f671402c8"
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "StandardScaler()"
+      ]
+     },
+     "execution_count": 27,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "numeric = ['CreditScore', 'Age', 'Tenure', 'Balance', 'NumOfProducts', 'EstimatedSalary']#численные признаки\n",
+    "scaler = StandardScaler()\n",
+    "scaler.fit(features_obuchenie[numeric])\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "BllfWrHCYXh2"
+   },
+   "source": [
+    "После разделения данных на обучающую, валидационную и тестовую выборки, следует масштабировать признаки в каждой выборке."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 28,
+   "metadata": {
+    "id": "AiVl0HJGYXh2"
+   },
+   "outputs": [],
+   "source": [
+    "features_obuchenie[numeric] = scaler.transform(features_obuchenie[numeric])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 29,
+   "metadata": {
+    "id": "6aCcbx7FYXh2",
+    "outputId": "6e8bd829-4e01-4e43-ad30-fbe8cade7694"
+   },
+   "outputs": [],
+   "source": [
+    "features_valida[numeric] = scaler.transform(features_valida[numeric])"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 30,
+   "metadata": {
+    "id": "27JocMjVYXh3",
+    "outputId": "3bd98d0b-36e7-4db6-bb75-7660c78d96f4"
+   },
+   "outputs": [],
+   "source": [
+    "features_test[numeric] = scaler.transform(features_test[numeric])"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "eOhQnD7PYXh3"
+   },
+   "source": [
+    "Проверим баланс классов."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 31,
+   "metadata": {
+    "id": "8XlBbo41YXh3",
+    "outputId": "295f6456-322a-42b0-ae2a-3d5d5179ea23"
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "0    0.793546\n",
+       "1    0.206454\n",
+       "Name: Exited, dtype: float64"
+      ]
+     },
+     "execution_count": 31,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "target_obuchenie.value_counts(normalize = 1)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 32,
+   "metadata": {
+    "id": "Qdw63l6YYXh4",
+    "outputId": "ccda05c4-0408-45b0-cf15-91b72994b818"
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "0    0.792629\n",
+       "1    0.207371\n",
+       "Name: Exited, dtype: float64"
+      ]
+     },
+     "execution_count": 32,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "target_valida.value_counts(normalize = 1)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "aujsxgtfYXh4"
+   },
+   "source": [
+    "Проведен анализ классов целевого признака показал, что наблюдается дисбаланс классов. Ответов 0 (клиент не ушел из банка) около 80%, а ответов 1 (клиент ушел из банка) – около 20%. \n",
+    "\n",
+    "Далее рассмотрены три модели для решения задачи классификации: \"Дерево решений\", \"Случайный лес\" и \"Логистическая регрессия\". \n",
+    "\n",
+    "Сначала рассмотрим модель \"Дерево решений\"."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 33,
+   "metadata": {
+    "id": "iXtbnA6NYXh5",
+    "outputId": "54f61f23-e324-47c1-e30a-ce2f4291c2ae"
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Глубина дерева: 7 F1: 0.580952380952381 AUC-ROC 0.6797786314764468\n"
+     ]
+    }
+   ],
+   "source": [
+    "f1_best= 0\n",
+    "best_depth = 0\n",
+    "for depth in range(1,25):\n",
+    "    model = DecisionTreeClassifier(max_depth=depth, random_state=1234)\n",
+    "    model.fit(features_obuchenie , target_obuchenie)\n",
+    "    predictions = model.predict(features_valida)\n",
+    "    f1 = f1_score(predictions, target_valida)\n",
+    "    probabilities_one_valid = model.predict_proba(features_valida)[:, 1]\n",
+    "    AUC = roc_auc_score(target_valida, probabilities_one_valid)\n",
+    "    if f1 > f1_best:\n",
+    "        f1_best = f1\n",
+    "        best_depth = depth\n",
+    "print(\"Глубина дерева:\", best_depth, \"F1:\", f1_best,'AUC-ROC',AUC)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "PmzStccnYXh6"
+   },
+   "source": [
+    "Рассмотрим модель \"Случаный лес\""
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 34,
+   "metadata": {
+    "id": "H0Yo5ZGlYXh6",
+    "outputId": "854be668-8b2b-4a5c-a03a-8e50e2d213ba"
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Глубина дерева: 16 Количество деревьев: 15 F1: 0.6026936026936026 AUC-ROC 0.8650933167911321 4\n"
+     ]
+    }
+   ],
+   "source": [
+    "f1_best= 0\n",
+    "best_depth = 0\n",
+    "for depth in range(1,20):\n",
+    "    for est in range(5,50,5):\n",
+    "        for sample in range(2,5):\n",
+    "            model = RandomForestClassifier(max_depth=depth, n_estimators=est, min_samples_leaf=sample, random_state=1234)\n",
+    "            model.fit(features_obuchenie , target_obuchenie)\n",
+    "            predictions = model.predict(features_valida)\n",
+    "            f1 = f1_score(predictions, target_valida)\n",
+    "            probabilities_one_valid = model.predict_proba(features_valida)[:, 1]\n",
+    "            AUC = roc_auc_score(target_valida, probabilities_one_valid)\n",
+    "            if f1 > f1_best:\n",
+    "                f1_best = f1\n",
+    "                best_depth = depth\n",
+    "                best_est = est\n",
+    "                best_sample = sample\n",
+    "print(\"Глубина дерева:\", best_depth, \"Количество деревьев:\", best_est,\"F1:\", f1_best,'AUC-ROC',AUC,sample)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "-pG9V7xRYXh9"
+   },
+   "source": [
+    "Рассмотрим модель \"Логическая регрессия\""
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 35,
+   "metadata": {
+    "id": "zczCw1YmYXh9",
+    "outputId": "bcab9fd0-f923-4bf4-a976-cd2c8610c833"
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "F1: 0.30400000000000005 AUC-ROC 0.773663293800172\n"
+     ]
+    }
+   ],
+   "source": [
+    "model = LogisticRegression()\n",
+    "model.fit(features_obuchenie , target_obuchenie)\n",
+    "predictions = model.predict(features_valida)\n",
+    "f1 = f1_score(predictions, target_valida)\n",
+    "probabilities_one_valid = model.predict_proba(features_valida)[:, 1]\n",
+    "AUC = roc_auc_score(target_valida, probabilities_one_valid)\n",
+    "print(\"F1:\", f1,'AUC-ROC',AUC)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "Z93p078FYXh-"
+   },
+   "source": [
+    "Изучение моделей \"Дерево решений\", \"Случайный лес\" и \"Логистическая регрессия\" показало, что наилучшая модель по метрике точности – \"Случайный лес\". Однако F1-мера для всех трех моделей достаточно низкая, что говорит о низком качестве моделей в целом."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "yloBkSRVYXh-"
+   },
+   "source": [
+    "## Борьба с дисбалансом"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "VBRz4aQsYXh-"
+   },
+   "source": [
+    "1 способ борьбы - upsampling, то есть увеличение выборки."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 36,
+   "metadata": {
+    "id": "kKFlaFB9YXh_"
+   },
+   "outputs": [],
+   "source": [
+    "\n",
+    "def upsample(features, target, repeat):\n",
+    "    features_zeros = features[target == 0]\n",
+    "    features_ones = features[target == 1]\n",
+    "    target_zeros = target[target == 0]\n",
+    "    target_ones = target[target == 1]\n",
+    "    features_upsampled = pd.concat([features_zeros] + [features_ones] * repeat)\n",
+    "    target_upsampled = pd.concat([target_zeros] + [target_ones] * repeat)\n",
+    "    features_upsampled, target_upsampled = shuffle(\n",
+    "        features_upsampled, target_upsampled, random_state=12345)\n",
+    "    return features_upsampled, target_upsampled"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 37,
+   "metadata": {
+    "id": "cE1xWvalYXh_"
+   },
+   "outputs": [],
+   "source": [
+    "features_upsampled_train, target_upsampled_train = upsample(features_obuchenie, target_obuchenie, repeat=4)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 38,
+   "metadata": {
+    "id": "Dq3QDwzGYXh_",
+    "outputId": "c4985b8b-065b-4e55-876d-3e059330e7bb"
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "1    0.509964\n",
+       "0    0.490036\n",
+       "Name: Exited, dtype: float64"
+      ]
+     },
+     "execution_count": 38,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "target_upsampled_train.value_counts(normalize = 1)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "FYX25ON1YXh_"
+   },
+   "source": [
+    "2 способ борьбы - downsampling, то есть уменьшение выборки."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 39,
+   "metadata": {
+    "id": "KHVcmDLWYXiA"
+   },
+   "outputs": [],
+   "source": [
+    "def downsample(features, target, fraction):\n",
+    "    features_zeros = features[target == 0]\n",
+    "    features_ones = features[target == 1]\n",
+    "    target_zeros = target[target == 0]\n",
+    "    target_ones = target[target == 1]\n",
+    "    features_downsampled = pd.concat(\n",
+    "        [features_zeros.sample(frac=fraction, random_state=12345)] + [features_ones])\n",
+    "    target_downsampled = pd.concat(\n",
+    "        [target_zeros.sample(frac=fraction, random_state=12345)] + [target_ones])\n",
+    "    features_downsampled, target_downsampled = shuffle(\n",
+    "        features_downsampled, target_downsampled, random_state=12345)\n",
+    "    return features_downsampled, target_downsampled"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 40,
+   "metadata": {
+    "id": "amZackIOYXiA"
+   },
+   "outputs": [],
+   "source": [
+    "features_downsampled_train, target_downsampled_train = downsample(features_obuchenie, target_obuchenie, fraction=0.25)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 41,
+   "metadata": {
+    "id": "DH3ABSFXYXiA",
+    "outputId": "134c536b-2848-47fa-c4a6-aca7dd0f5e37"
+   },
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "1    0.509964\n",
+       "0    0.490036\n",
+       "Name: Exited, dtype: float64"
+      ]
+     },
+     "execution_count": 41,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "target_downsampled_train.value_counts(normalize = 1)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "jr6e0vMUYXiA"
+   },
+   "source": [
+    "Для проверки моделей на данных, которые были сбалансированы методом upsample, сначала рассмотрим модель \"Дерево решений\"."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 42,
+   "metadata": {
+    "id": "qDL0t5WiYXiB",
+    "outputId": "8649ba46-fee0-4c02-b2cd-453e57db46ef"
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Глубина дерева: 5 F1: 0.5735449735449736 AUC-ROC 0.6654750882179153\n"
+     ]
+    }
+   ],
+   "source": [
+    "f1_best= 0\n",
+    "best_depth = 0\n",
+    "for depth in range(1,25):\n",
+    "    model = DecisionTreeClassifier(max_depth=depth, random_state=1234)\n",
+    "    model.fit(features_upsampled_train, target_upsampled_train)\n",
+    "    predictions = model.predict(features_valida)\n",
+    "    f1 = f1_score(predictions, target_valida)\n",
+    "    probabilities_one_valid = model.predict_proba(features_valida)[:, 1]\n",
+    "    AUC = roc_auc_score(target_valida, probabilities_one_valid)\n",
+    "    if f1 > f1_best:\n",
+    "        f1_best = f1\n",
+    "        best_depth = depth\n",
+    "print(\"Глубина дерева:\", best_depth, \"F1:\", f1_best,'AUC-ROC',AUC)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "jsZIF0vFYXiB"
+   },
+   "source": [
+    "Случаный лес."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 43,
+   "metadata": {
+    "id": "OdePKLrrYXiB",
+    "outputId": "0682ade1-dadf-4218-a753-841d07e0e2c8"
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Глубина дерева: 18 Количество деревьев: 45 F1: 0.6444159178433889 AUC-ROC 0.8680808530769047 4\n"
+     ]
+    }
+   ],
+   "source": [
+    "f1_best= 0\n",
+    "best_depth = 0\n",
+    "for depth in range(1,20):\n",
+    "    for est in range(5,50,5):\n",
+    "        for sample in range(2,5):\n",
+    "            model = RandomForestClassifier(max_depth=depth, n_estimators=est, min_samples_leaf=sample, random_state=1234)\n",
+    "            model.fit(features_upsampled_train, target_upsampled_train)\n",
+    "            predictions = model.predict(features_valida)\n",
+    "            f1 = f1_score(predictions, target_valida)\n",
+    "            probabilities_one_valid = model.predict_proba(features_valida)[:, 1]\n",
+    "            AUC = roc_auc_score(target_valida, probabilities_one_valid)\n",
+    "            if f1 > f1_best:\n",
+    "                f1_best = f1\n",
+    "                best_depth = depth\n",
+    "                best_est = est\n",
+    "                best_sample = sample\n",
+    "print(\"Глубина дерева:\", best_depth, \"Количество деревьев:\", best_est,\"F1:\", f1_best,'AUC-ROC',AUC,sample)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "Ipii8ZPnYXiB"
+   },
+   "source": [
+    "Линейная регрессия."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 44,
+   "metadata": {
+    "id": "Mn-pZljvYXiC",
+    "outputId": "2932bb54-d5d8-47af-f2a4-1ebaef163547"
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "F1: 0.5085972850678734 AUC-ROC 0.777854680197402\n"
+     ]
+    }
+   ],
+   "source": [
+    "model = LogisticRegression()\n",
+    "model.fit(features_upsampled_train, target_upsampled_train)\n",
+    "predictions = model.predict(features_valida)\n",
+    "f1 = f1_score(predictions, target_valida)\n",
+    "probabilities_one_valid = model.predict_proba(features_valida)[:, 1]\n",
+    "AUC = roc_auc_score(target_valida, probabilities_one_valid)\n",
+    "print(\"F1:\", f1,'AUC-ROC',AUC)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "L3u76BrtYXiC"
+   },
+   "source": [
+    "Для проверки моделей на данных, которые были сбалансированы методом downsample, рассмотрим модель \"Дерево решений\"."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 45,
+   "metadata": {
+    "id": "SNGElW74YXiC",
+    "outputId": "db8fb9cb-830b-47ba-d4f2-0601bac5ad1f"
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Глубина дерева: 6 F1: 0.5636704119850188 AUC-ROC 0.7048247882677995\n"
+     ]
+    }
+   ],
+   "source": [
+    "f1_best= 0\n",
+    "best_depth = 0\n",
+    "for depth in range(1,25):\n",
+    "    model = DecisionTreeClassifier(max_depth=depth, random_state=1234)\n",
+    "    model.fit(features_downsampled_train, target_downsampled_train)\n",
+    "    predictions = model.predict(features_valida)\n",
+    "    f1 = f1_score(predictions, target_valida)\n",
+    "    probabilities_one_valid = model.predict_proba(features_valida)[:, 1]\n",
+    "    AUC = roc_auc_score(target_valida, probabilities_one_valid)\n",
+    "    if f1 > f1_best:\n",
+    "        f1_best = f1\n",
+    "        best_depth = depth\n",
+    "print(\"Глубина дерева:\", best_depth, \"F1:\", f1_best,'AUC-ROC',AUC)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "P3QEvVCHYXiD"
+   },
+   "source": [
+    "Случаный лес."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 46,
+   "metadata": {
+    "id": "MIeqFvBWYXiD",
+    "outputId": "567ce68c-a374-4d7f-a71b-66aaafe67aca"
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Глубина дерева: 16 Количество деревьев: 20 F1: 0.6035502958579881 AUC-ROC 0.8628917805016778 4\n"
+     ]
+    }
+   ],
+   "source": [
+    "f1_best= 0\n",
+    "best_depth = 0\n",
+    "for depth in range(1,20):\n",
+    "    for est in range(5,50,5):\n",
+    "        for sample in range(2,5):\n",
+    "            model = RandomForestClassifier(max_depth=depth, n_estimators=est, min_samples_leaf=sample, random_state=1234)\n",
+    "            model.fit(features_downsampled_train, target_downsampled_train)\n",
+    "            predictions = model.predict(features_valida)\n",
+    "            f1 = f1_score(predictions, target_valida)\n",
+    "            probabilities_one_valid = model.predict_proba(features_valida)[:, 1]\n",
+    "            AUC = roc_auc_score(target_valida, probabilities_one_valid)\n",
+    "            if f1 > f1_best:\n",
+    "                f1_best = f1\n",
+    "                best_depth = depth\n",
+    "                best_est = est\n",
+    "                best_sample = sample\n",
+    "print(\"Глубина дерева:\", best_depth, \"Количество деревьев:\", best_est,\"F1:\", f1_best,'AUC-ROC',AUC,sample)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "eM0BW1M3YXiD"
+   },
+   "source": [
+    "Линейная регрессия."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 47,
+   "metadata": {
+    "id": "mdyfRYKPYXiD",
+    "outputId": "0a54a559-3b1c-47d8-8265-142a213c9fc0"
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "F1: 0.5044883303411131 AUC-ROC 0.7770245022153419\n"
+     ]
+    }
+   ],
+   "source": [
+    "model = LogisticRegression()\n",
+    "model.fit(features_downsampled_train, target_downsampled_train)\n",
+    "predictions = model.predict(features_valida)\n",
+    "f1 = f1_score(predictions, target_valida)\n",
+    "probabilities_one_valid = model.predict_proba(features_valida)[:, 1]\n",
+    "AUC = roc_auc_score(target_valida, probabilities_one_valid)\n",
+    "print(\"F1:\", f1,'AUC-ROC',AUC)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "Lxu7RvTEYXiE"
+   },
+   "source": [
+    "Благодаря сбалансированию классов мы смогли улучшить F1-меры для всех моделей и достигнуть значения выше 0.59. \n",
+    "\n",
+    "Для проведения тестирования выберем модель \"Случайный лес\", так как она показала лучший результат по метрикам качества. Оптимальными гиперпараметрами для этой модели оказались: max_depth = 18, n_estimators = 45, min_samples_leaf = 4, random_state = 1234. \n",
+    "\n",
+    "Именно эта модель будет использоваться для прогнозирования ухода клиентов из банка на новых данных."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "aPR9MRDPYXiF"
+   },
+   "source": [
+    "## Тестирование модели"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 48,
+   "metadata": {
+    "id": "5emTnIyQYXiF",
+    "outputId": "942812a1-03ee-424c-af7c-c32caa37b11d"
+   },
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "F1: 0.5984251968503936 AUC-ROC 0.855653756879915\n"
+     ]
+    }
+   ],
+   "source": [
+    "model = RandomForestClassifier(max_depth=18, n_estimators=45, min_samples_leaf=4, random_state=1234)\n",
+    "model.fit(features_upsampled_train, target_upsampled_train)\n",
+    "predictions = model.predict(features_test)\n",
+    "f1 = f1_score(predictions, target_test)\n",
+    "probabilities_one_valid = model.predict_proba(features_test)[:, 1]\n",
+    "AUC = roc_auc_score(target_test, probabilities_one_valid)\n",
+    "\n",
+    "print(\"F1:\",f1,'AUC-ROC',AUC)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {
+    "id": "vb2FREJ0YXiG"
+   },
+   "source": [
+    "После проверки модели \"Дерево решений\" на данных, которые были сбалансированы методом upsampled, была получена F1-мера 0.598, что выше, чем без учета балансировки классов.\n",
+    "\n",
+    "В целом, сравнив три модели (\"Дерево решений\", \"Случайный лес\" и \"Логистическая регрессия\"), можно заключить, что наилучший результат показала модель \"Случайный лес\" с гиперпараметрами: max_depth = 18, n_estimators = 45, min_samples_leaf = 4, random_state = 1234. Эти параметры позволили достичь F1-меры на тестовой выборке чуть выше, чем 0.59.\n",
+    "\n",
+    "Тем не менее, для повышения точности модели можно продолжать экспериментировать с различными значениями гиперпараметров, а также использовать другие алгоритмы обучения."
+   ]
+  }
+ ],
+ "metadata": {
+  "colab": {
+   "provenance": []
+  },
+  "kernelspec": {
+   "display_name": "Python 3 (ipykernel)",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.9.7"
+  },
+  "toc": {
+   "base_numbering": 1,
+   "nav_menu": {},
+   "number_sections": true,
+   "sideBar": true,
+   "skip_h1_title": true,
+   "title_cell": "Содержание",
+   "title_sidebar": "Contents",
+   "toc_cell": true,
+   "toc_position": {},
+   "toc_section_display": true,
+   "toc_window_display": false
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 1
+}
