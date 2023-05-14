@@ -1,0 +1,2198 @@
+{
+ "cells": [
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "# Выбор локации для скважины"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Для решения задачи выбора региона для бурения новой скважины нам нужно построить модель машинного обучения, которая поможет определить регион с наибольшей прибылью.\n",
+    "\n",
+    "В данных предоставлено 10 000 месторождений на каждый регион, где измерили качество нефти и объем её запасов. Для решения задачи можно использовать модель линейной регрессии или случайного леса.\n",
+    "\n",
+    "Для анализа возможной прибыли и рисков мы можем использовать технику Bootstrap. Необходимо сгенерировать 1000 подвыборок с возвращением из нашего датасета. По каждой сгенерированной подвыборке строим модель и определяем прибыль. Затем рассчитываем среднюю прибыль, 95%-й доверительный интервал, а также вероятность убытков.На основании этих данных можно принять решение о выборе региона для бурения новой скважины."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Загрузка и подготовка данных"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 40,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "import pandas as pd\n",
+    "import numpy as np\n",
+    "from scipy import stats as st \n",
+    "\n",
+    "from sklearn.model_selection import train_test_split\n",
+    "from sklearn.preprocessing import StandardScaler\n",
+    "from sklearn.linear_model import LinearRegression\n",
+    "from sklearn.metrics import mean_squared_error\n",
+    "import warnings\n"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 41,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "try:\n",
+    "    data = pd.read_csv('/Users/arina200212yandex.ru/Desktop/geo_data_0.csv')\n",
+    "except:\n",
+    "    data = pd.read_csv('/datasets/geo_data_0.csv')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 42,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "try:\n",
+    "    data1 = pd.read_csv('/Users/arina200212yandex.ru/Desktop/geo_data_1.csv')\n",
+    "except:\n",
+    "    data1 = pd.read_csv('/datasets/geo_data_1.csv')"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 43,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "try:\n",
+    "    data2 = pd.read_csv('/Users/arina200212yandex.ru/Desktop/geo_data_2.csv')\n",
+    "except:\n",
+    "    data2 = pd.read_csv('/datasets/geo_data_2.csv')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Посмотрим на исходные данные."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 44,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>id</th>\n",
+       "      <th>f0</th>\n",
+       "      <th>f1</th>\n",
+       "      <th>f2</th>\n",
+       "      <th>product</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>txEyH</td>\n",
+       "      <td>0.705745</td>\n",
+       "      <td>-0.497823</td>\n",
+       "      <td>1.221170</td>\n",
+       "      <td>105.280062</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>2acmU</td>\n",
+       "      <td>1.334711</td>\n",
+       "      <td>-0.340164</td>\n",
+       "      <td>4.365080</td>\n",
+       "      <td>73.037750</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>409Wp</td>\n",
+       "      <td>1.022732</td>\n",
+       "      <td>0.151990</td>\n",
+       "      <td>1.419926</td>\n",
+       "      <td>85.265647</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>iJLyR</td>\n",
+       "      <td>-0.032172</td>\n",
+       "      <td>0.139033</td>\n",
+       "      <td>2.978566</td>\n",
+       "      <td>168.620776</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>Xdl7t</td>\n",
+       "      <td>1.988431</td>\n",
+       "      <td>0.155413</td>\n",
+       "      <td>4.751769</td>\n",
+       "      <td>154.036647</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "      id        f0        f1        f2     product\n",
+       "0  txEyH  0.705745 -0.497823  1.221170  105.280062\n",
+       "1  2acmU  1.334711 -0.340164  4.365080   73.037750\n",
+       "2  409Wp  1.022732  0.151990  1.419926   85.265647\n",
+       "3  iJLyR -0.032172  0.139033  2.978566  168.620776\n",
+       "4  Xdl7t  1.988431  0.155413  4.751769  154.036647"
+      ]
+     },
+     "execution_count": 44,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "data.head()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 45,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>id</th>\n",
+       "      <th>f0</th>\n",
+       "      <th>f1</th>\n",
+       "      <th>f2</th>\n",
+       "      <th>product</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>kBEdx</td>\n",
+       "      <td>-15.001348</td>\n",
+       "      <td>-8.276000</td>\n",
+       "      <td>-0.005876</td>\n",
+       "      <td>3.179103</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>62mP7</td>\n",
+       "      <td>14.272088</td>\n",
+       "      <td>-3.475083</td>\n",
+       "      <td>0.999183</td>\n",
+       "      <td>26.953261</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>vyE1P</td>\n",
+       "      <td>6.263187</td>\n",
+       "      <td>-5.948386</td>\n",
+       "      <td>5.001160</td>\n",
+       "      <td>134.766305</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>KcrkZ</td>\n",
+       "      <td>-13.081196</td>\n",
+       "      <td>-11.506057</td>\n",
+       "      <td>4.999415</td>\n",
+       "      <td>137.945408</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>AHL4O</td>\n",
+       "      <td>12.702195</td>\n",
+       "      <td>-8.147433</td>\n",
+       "      <td>5.004363</td>\n",
+       "      <td>134.766305</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "      id         f0         f1        f2     product\n",
+       "0  kBEdx -15.001348  -8.276000 -0.005876    3.179103\n",
+       "1  62mP7  14.272088  -3.475083  0.999183   26.953261\n",
+       "2  vyE1P   6.263187  -5.948386  5.001160  134.766305\n",
+       "3  KcrkZ -13.081196 -11.506057  4.999415  137.945408\n",
+       "4  AHL4O  12.702195  -8.147433  5.004363  134.766305"
+      ]
+     },
+     "execution_count": 45,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "data1.head()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 46,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>id</th>\n",
+       "      <th>f0</th>\n",
+       "      <th>f1</th>\n",
+       "      <th>f2</th>\n",
+       "      <th>product</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>0</th>\n",
+       "      <td>fwXo0</td>\n",
+       "      <td>-1.146987</td>\n",
+       "      <td>0.963328</td>\n",
+       "      <td>-0.828965</td>\n",
+       "      <td>27.758673</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>1</th>\n",
+       "      <td>WJtFt</td>\n",
+       "      <td>0.262778</td>\n",
+       "      <td>0.269839</td>\n",
+       "      <td>-2.530187</td>\n",
+       "      <td>56.069697</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>2</th>\n",
+       "      <td>ovLUW</td>\n",
+       "      <td>0.194587</td>\n",
+       "      <td>0.289035</td>\n",
+       "      <td>-5.586433</td>\n",
+       "      <td>62.871910</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>3</th>\n",
+       "      <td>q6cA6</td>\n",
+       "      <td>2.236060</td>\n",
+       "      <td>-0.553760</td>\n",
+       "      <td>0.930038</td>\n",
+       "      <td>114.572842</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>4</th>\n",
+       "      <td>WPMUX</td>\n",
+       "      <td>-0.515993</td>\n",
+       "      <td>1.716266</td>\n",
+       "      <td>5.899011</td>\n",
+       "      <td>149.600746</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "      id        f0        f1        f2     product\n",
+       "0  fwXo0 -1.146987  0.963328 -0.828965   27.758673\n",
+       "1  WJtFt  0.262778  0.269839 -2.530187   56.069697\n",
+       "2  ovLUW  0.194587  0.289035 -5.586433   62.871910\n",
+       "3  q6cA6  2.236060 -0.553760  0.930038  114.572842\n",
+       "4  WPMUX -0.515993  1.716266  5.899011  149.600746"
+      ]
+     },
+     "execution_count": 46,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "data2.head()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Проверим на дубликаты "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 47,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>id</th>\n",
+       "      <th>f0</th>\n",
+       "      <th>f1</th>\n",
+       "      <th>f2</th>\n",
+       "      <th>product</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "Empty DataFrame\n",
+       "Columns: [id, f0, f1, f2, product]\n",
+       "Index: []"
+      ]
+     },
+     "execution_count": 47,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "data[data.duplicated()]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 48,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>id</th>\n",
+       "      <th>f0</th>\n",
+       "      <th>f1</th>\n",
+       "      <th>f2</th>\n",
+       "      <th>product</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "Empty DataFrame\n",
+       "Columns: [id, f0, f1, f2, product]\n",
+       "Index: []"
+      ]
+     },
+     "execution_count": 48,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "data1[data1.duplicated()]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 49,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>id</th>\n",
+       "      <th>f0</th>\n",
+       "      <th>f1</th>\n",
+       "      <th>f2</th>\n",
+       "      <th>product</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "Empty DataFrame\n",
+       "Columns: [id, f0, f1, f2, product]\n",
+       "Index: []"
+      ]
+     },
+     "execution_count": 49,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "data2[data2.duplicated()]"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Теперь отдельно по стобцу id"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 50,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>id</th>\n",
+       "      <th>f0</th>\n",
+       "      <th>f1</th>\n",
+       "      <th>f2</th>\n",
+       "      <th>product</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>7530</th>\n",
+       "      <td>HZww2</td>\n",
+       "      <td>1.061194</td>\n",
+       "      <td>-0.373969</td>\n",
+       "      <td>10.430210</td>\n",
+       "      <td>158.828695</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>41724</th>\n",
+       "      <td>bxg6G</td>\n",
+       "      <td>-0.823752</td>\n",
+       "      <td>0.546319</td>\n",
+       "      <td>3.630479</td>\n",
+       "      <td>93.007798</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>51970</th>\n",
+       "      <td>A5aEY</td>\n",
+       "      <td>-0.180335</td>\n",
+       "      <td>0.935548</td>\n",
+       "      <td>-2.094773</td>\n",
+       "      <td>33.020205</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>63593</th>\n",
+       "      <td>QcMuo</td>\n",
+       "      <td>0.635635</td>\n",
+       "      <td>-0.473422</td>\n",
+       "      <td>0.862670</td>\n",
+       "      <td>64.578675</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>66136</th>\n",
+       "      <td>74z30</td>\n",
+       "      <td>1.084962</td>\n",
+       "      <td>-0.312358</td>\n",
+       "      <td>6.990771</td>\n",
+       "      <td>127.643327</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>69163</th>\n",
+       "      <td>AGS9W</td>\n",
+       "      <td>-0.933795</td>\n",
+       "      <td>0.116194</td>\n",
+       "      <td>-3.655896</td>\n",
+       "      <td>19.230453</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>75715</th>\n",
+       "      <td>Tdehs</td>\n",
+       "      <td>0.112079</td>\n",
+       "      <td>0.430296</td>\n",
+       "      <td>3.218993</td>\n",
+       "      <td>60.964018</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>90815</th>\n",
+       "      <td>fiKDv</td>\n",
+       "      <td>0.049883</td>\n",
+       "      <td>0.841313</td>\n",
+       "      <td>6.394613</td>\n",
+       "      <td>137.346586</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>92341</th>\n",
+       "      <td>TtcGQ</td>\n",
+       "      <td>0.110711</td>\n",
+       "      <td>1.022689</td>\n",
+       "      <td>0.911381</td>\n",
+       "      <td>101.318008</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>97785</th>\n",
+       "      <td>bsk9y</td>\n",
+       "      <td>0.378429</td>\n",
+       "      <td>0.005837</td>\n",
+       "      <td>0.160827</td>\n",
+       "      <td>160.637302</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "          id        f0        f1         f2     product\n",
+       "7530   HZww2  1.061194 -0.373969  10.430210  158.828695\n",
+       "41724  bxg6G -0.823752  0.546319   3.630479   93.007798\n",
+       "51970  A5aEY -0.180335  0.935548  -2.094773   33.020205\n",
+       "63593  QcMuo  0.635635 -0.473422   0.862670   64.578675\n",
+       "66136  74z30  1.084962 -0.312358   6.990771  127.643327\n",
+       "69163  AGS9W -0.933795  0.116194  -3.655896   19.230453\n",
+       "75715  Tdehs  0.112079  0.430296   3.218993   60.964018\n",
+       "90815  fiKDv  0.049883  0.841313   6.394613  137.346586\n",
+       "92341  TtcGQ  0.110711  1.022689   0.911381  101.318008\n",
+       "97785  bsk9y  0.378429  0.005837   0.160827  160.637302"
+      ]
+     },
+     "execution_count": 50,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "data[data.duplicated(subset = ['id'])]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 51,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>id</th>\n",
+       "      <th>f0</th>\n",
+       "      <th>f1</th>\n",
+       "      <th>f2</th>\n",
+       "      <th>product</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>7530</th>\n",
+       "      <td>9MMvV</td>\n",
+       "      <td>8.391597</td>\n",
+       "      <td>4.135990</td>\n",
+       "      <td>1.005425</td>\n",
+       "      <td>26.953261</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>41724</th>\n",
+       "      <td>4dJt2</td>\n",
+       "      <td>9.275227</td>\n",
+       "      <td>-7.810681</td>\n",
+       "      <td>1.999934</td>\n",
+       "      <td>53.906522</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>51970</th>\n",
+       "      <td>cuvVK</td>\n",
+       "      <td>9.513402</td>\n",
+       "      <td>-8.803552</td>\n",
+       "      <td>0.011952</td>\n",
+       "      <td>0.000000</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>63593</th>\n",
+       "      <td>fBC4y</td>\n",
+       "      <td>0.009013</td>\n",
+       "      <td>1.112960</td>\n",
+       "      <td>3.996426</td>\n",
+       "      <td>110.992147</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>66136</th>\n",
+       "      <td>KK7UR</td>\n",
+       "      <td>8.306984</td>\n",
+       "      <td>-0.338676</td>\n",
+       "      <td>5.000386</td>\n",
+       "      <td>134.766305</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>69163</th>\n",
+       "      <td>Qk6xL</td>\n",
+       "      <td>18.545841</td>\n",
+       "      <td>-7.219445</td>\n",
+       "      <td>2.001204</td>\n",
+       "      <td>53.906522</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>75715</th>\n",
+       "      <td>AQema</td>\n",
+       "      <td>23.131906</td>\n",
+       "      <td>-0.551261</td>\n",
+       "      <td>4.003394</td>\n",
+       "      <td>107.813044</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>90815</th>\n",
+       "      <td>mPEhE</td>\n",
+       "      <td>10.231390</td>\n",
+       "      <td>-12.954775</td>\n",
+       "      <td>1.993775</td>\n",
+       "      <td>53.906522</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>92341</th>\n",
+       "      <td>A5BwN</td>\n",
+       "      <td>-9.043047</td>\n",
+       "      <td>-5.562453</td>\n",
+       "      <td>0.000657</td>\n",
+       "      <td>3.179103</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>97785</th>\n",
+       "      <td>le3wh</td>\n",
+       "      <td>-5.323811</td>\n",
+       "      <td>-5.735230</td>\n",
+       "      <td>0.004351</td>\n",
+       "      <td>3.179103</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "          id         f0         f1        f2     product\n",
+       "7530   9MMvV   8.391597   4.135990  1.005425   26.953261\n",
+       "41724  4dJt2   9.275227  -7.810681  1.999934   53.906522\n",
+       "51970  cuvVK   9.513402  -8.803552  0.011952    0.000000\n",
+       "63593  fBC4y   0.009013   1.112960  3.996426  110.992147\n",
+       "66136  KK7UR   8.306984  -0.338676  5.000386  134.766305\n",
+       "69163  Qk6xL  18.545841  -7.219445  2.001204   53.906522\n",
+       "75715  AQema  23.131906  -0.551261  4.003394  107.813044\n",
+       "90815  mPEhE  10.231390 -12.954775  1.993775   53.906522\n",
+       "92341  A5BwN  -9.043047  -5.562453  0.000657    3.179103\n",
+       "97785  le3wh  -5.323811  -5.735230  0.004351    3.179103"
+      ]
+     },
+     "execution_count": 51,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "data1[data.duplicated(subset = ['id'])]"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 52,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/html": [
+       "<div>\n",
+       "<style scoped>\n",
+       "    .dataframe tbody tr th:only-of-type {\n",
+       "        vertical-align: middle;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe tbody tr th {\n",
+       "        vertical-align: top;\n",
+       "    }\n",
+       "\n",
+       "    .dataframe thead th {\n",
+       "        text-align: right;\n",
+       "    }\n",
+       "</style>\n",
+       "<table border=\"1\" class=\"dataframe\">\n",
+       "  <thead>\n",
+       "    <tr style=\"text-align: right;\">\n",
+       "      <th></th>\n",
+       "      <th>id</th>\n",
+       "      <th>f0</th>\n",
+       "      <th>f1</th>\n",
+       "      <th>f2</th>\n",
+       "      <th>product</th>\n",
+       "    </tr>\n",
+       "  </thead>\n",
+       "  <tbody>\n",
+       "    <tr>\n",
+       "      <th>7530</th>\n",
+       "      <td>8fP5H</td>\n",
+       "      <td>-1.729697</td>\n",
+       "      <td>-2.592517</td>\n",
+       "      <td>2.757510</td>\n",
+       "      <td>37.550380</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>41724</th>\n",
+       "      <td>BnxVN</td>\n",
+       "      <td>-3.065122</td>\n",
+       "      <td>1.522308</td>\n",
+       "      <td>4.890901</td>\n",
+       "      <td>126.815185</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>51970</th>\n",
+       "      <td>bev1W</td>\n",
+       "      <td>-0.400736</td>\n",
+       "      <td>0.694304</td>\n",
+       "      <td>-0.291779</td>\n",
+       "      <td>97.533822</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>63593</th>\n",
+       "      <td>X2hJC</td>\n",
+       "      <td>4.893141</td>\n",
+       "      <td>3.092911</td>\n",
+       "      <td>7.545909</td>\n",
+       "      <td>101.992800</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>66136</th>\n",
+       "      <td>g1qi0</td>\n",
+       "      <td>-0.536611</td>\n",
+       "      <td>-6.535621</td>\n",
+       "      <td>10.799467</td>\n",
+       "      <td>151.288487</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>69163</th>\n",
+       "      <td>fSqkE</td>\n",
+       "      <td>-1.770726</td>\n",
+       "      <td>1.343657</td>\n",
+       "      <td>2.068107</td>\n",
+       "      <td>76.691632</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>75715</th>\n",
+       "      <td>59tFH</td>\n",
+       "      <td>-0.027911</td>\n",
+       "      <td>-0.653067</td>\n",
+       "      <td>1.427854</td>\n",
+       "      <td>36.922148</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>90815</th>\n",
+       "      <td>3OUvb</td>\n",
+       "      <td>-3.168230</td>\n",
+       "      <td>-2.099716</td>\n",
+       "      <td>1.639865</td>\n",
+       "      <td>181.374393</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>92341</th>\n",
+       "      <td>zEXvz</td>\n",
+       "      <td>1.715274</td>\n",
+       "      <td>1.536217</td>\n",
+       "      <td>-2.738595</td>\n",
+       "      <td>50.257178</td>\n",
+       "    </tr>\n",
+       "    <tr>\n",
+       "      <th>97785</th>\n",
+       "      <td>WxQ6T</td>\n",
+       "      <td>-2.937900</td>\n",
+       "      <td>2.607788</td>\n",
+       "      <td>7.883508</td>\n",
+       "      <td>109.917929</td>\n",
+       "    </tr>\n",
+       "  </tbody>\n",
+       "</table>\n",
+       "</div>"
+      ],
+      "text/plain": [
+       "          id        f0        f1         f2     product\n",
+       "7530   8fP5H -1.729697 -2.592517   2.757510   37.550380\n",
+       "41724  BnxVN -3.065122  1.522308   4.890901  126.815185\n",
+       "51970  bev1W -0.400736  0.694304  -0.291779   97.533822\n",
+       "63593  X2hJC  4.893141  3.092911   7.545909  101.992800\n",
+       "66136  g1qi0 -0.536611 -6.535621  10.799467  151.288487\n",
+       "69163  fSqkE -1.770726  1.343657   2.068107   76.691632\n",
+       "75715  59tFH -0.027911 -0.653067   1.427854   36.922148\n",
+       "90815  3OUvb -3.168230 -2.099716   1.639865  181.374393\n",
+       "92341  zEXvz  1.715274  1.536217  -2.738595   50.257178\n",
+       "97785  WxQ6T -2.937900  2.607788   7.883508  109.917929"
+      ]
+     },
+     "execution_count": 52,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "data2[data.duplicated(subset = ['id'])]"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Есть ли пропуски"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 53,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "id         0\n",
+       "f0         0\n",
+       "f1         0\n",
+       "f2         0\n",
+       "product    0\n",
+       "dtype: int64"
+      ]
+     },
+     "execution_count": 53,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "data.isna().sum()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 54,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "id         0\n",
+       "f0         0\n",
+       "f1         0\n",
+       "f2         0\n",
+       "product    0\n",
+       "dtype: int64"
+      ]
+     },
+     "execution_count": 54,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "data1.isna().sum()"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 55,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "id         0\n",
+       "f0         0\n",
+       "f1         0\n",
+       "f2         0\n",
+       "product    0\n",
+       "dtype: int64"
+      ]
+     },
+     "execution_count": 55,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "data2.isna().sum()"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Столбец id нам не пригодится, так что удалим его."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 56,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "data = data.drop('id', axis = 1)\n",
+    "data1 = data1.drop('id', axis = 1)\n",
+    "data2 = data2.drop('id', axis = 1)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "На предварительном этапе проведен анализ данных, в котором были рассмотрены следующие аспекты: наличие пропусков, дубликатов и самого набора данных. \n",
+    "\n",
+    "В работе не выявлено полных дубликатов в выборках, но было обнаружено небольшое количество дубликатов по id. Однако, было решено оставить данные без изменений и работать с этими данными дальше.\n",
+    "\n",
+    "Таким образом, данные готовы для дальнейшего анализа и построения моделей для задачи машинного обучения."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Обучение и проверка модели"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Для построения модели выбора региона для бурения новой скважины можно разбить данные на обучающую и валидационную выборки в соотношении 75:25. Необходимо также привести признаки к одному масштабу."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 57,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "warnings.filterwarnings('ignore')#необходимо, чтобы убрать предупреждения"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 58,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "features = data.drop('product', axis=1)\n",
+    "target = data['product']\n",
+    "features_train, features_valid, target_train, target_valid = train_test_split(features,\n",
+    "                                                                                  target,\n",
+    "                                                                                  train_size=0.25,\n",
+    "                                                                                  random_state=12345,\n",
+    "                                                                                  shuffle=False)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 59,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "scaler = StandardScaler()\n",
+    "scaler.fit(features_train)\n",
+    "features_train = scaler.transform(features_train)\n",
+    "features_valid = scaler.transform(features_valid)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 60,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "features1 = data1.drop('product', axis=1)\n",
+    "target1 = data1['product']\n",
+    "features_train1, features_valid1, target_train1, target_valid1 = train_test_split(features1,\n",
+    "                                                                                  target1,\n",
+    "                                                                                  train_size=0.25,\n",
+    "                                                                                  random_state=12345,\n",
+    "                                                                                  shuffle=False)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 61,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "scaler1 = StandardScaler()\n",
+    "scaler1.fit(features_train1)\n",
+    "features_train1 = scaler.transform(features_train1)\n",
+    "features_valid1 = scaler.transform(features_valid1)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 62,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "features2 = data2.drop('product', axis=1)\n",
+    "target2 = data2['product']\n",
+    "features_train2, features_valid2, target_train2, target_valid2 = train_test_split(features2,\n",
+    "                                                                                  target2,\n",
+    "                                                                                  train_size=0.25,\n",
+    "                                                                                  random_state=12345,\n",
+    "                                                                                  shuffle=False)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 63,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "scaler2 = StandardScaler()\n",
+    "# scaler2.fit(features_train)\n",
+    "scaler2.fit(features_train2) \n",
+    "features_train2 = scaler.transform(features_train2)\n",
+    "features_valid2 = scaler.transform(features_valid2)"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Далее мы можем обучить модели. Найти предсказания,средний запас предсказанного сырья и RMSE модели"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 64,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "RMSE = 37.61893312647744\n",
+      "средний запас предсказанного сырья 92.67746991590558\n"
+     ]
+    }
+   ],
+   "source": [
+    "model = LinearRegression()\n",
+    "model.fit(features_train,target_train)\n",
+    "predictions = model.predict(features_valid)\n",
+    "np_array = np.array(predictions)\n",
+    "new_predictions = pd.Series(np_array, index = target_valid.index)\n",
+    "print(\"RMSE =\", mean_squared_error(target_valid,new_predictions) ** 0.5)\n",
+    "print('средний запас предсказанного сырья',new_predictions.mean())"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 65,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "RMSE = 0.8915393978719804\n",
+      "средний запас предсказанного сырья 68.93047860154674\n"
+     ]
+    }
+   ],
+   "source": [
+    "model1 = LinearRegression()\n",
+    "model1.fit(features_train1,target_train1)\n",
+    "predictions_1 = model1.predict(features_valid1)\n",
+    "np_array1 = np.array(predictions_1)\n",
+    "new_predictions1 = pd.Series(np_array1, index = target_valid1.index)\n",
+    "print(\"RMSE =\", mean_squared_error(target_valid1, new_predictions1) ** 0.5)\n",
+    "print('средний запас предсказанного сырья',new_predictions1.mean())"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 66,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "RMSE = 39.97593851112621\n",
+      "средний запас предсказанного сырья 95.02403363016232\n"
+     ]
+    }
+   ],
+   "source": [
+    "model2 = LinearRegression()\n",
+    "model2.fit(features_train2,target_train2)\n",
+    "predictions_2 = model2.predict(features_valid2)\n",
+    "np_array2 = np.array(predictions_2)\n",
+    "new_predictions2 = pd.Series(np_array2, index = target_valid2.index)\n",
+    "print(\"RMSE =\", mean_squared_error(target_valid2, new_predictions2) ** 0.5)\n",
+    "print('средний запас предсказанного сырья',new_predictions2.mean())"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Вывод: из трех датасетов наиболее точные предсказания показал второй датасет. В то же время, первый и третий датасеты имели достаточно высокий показатель RMSE, что говорит о большой разнице между предсказанными и фактическими значениями."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Подготовка к расчёту прибыли"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "При проведении разведки региона было исследовано 500 точек, из которых методами машинного обучения были отобраны 200 наилучших для разработки. Бюджет на разработку скважин в регионе составляет 10 млрд рублей. При текущей рыночной цене одного барреля сырья (450 рублей) доход с каждой единицы продукции составляет 450 тыс. рублей (объем указан в тысячах баррелей). \n",
+    "\n",
+    "После оценки рисков необходимо оставить только те регионы, у которых вероятность убытков меньше 2.5%. Далее выбирается регион с наибольшей средней прибылью среди отобранных."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 67,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "BUDGET = 10000000000\n",
+    "PRICE = 450000\n",
+    "OIL = 200\n",
+    "POINT = 500\n",
+    "BEST_POINT = 200"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 68,
+   "metadata": {},
+   "outputs": [
+    {
+     "data": {
+      "text/plain": [
+       "111.11111111111111"
+      ]
+     },
+     "execution_count": 68,
+     "metadata": {},
+     "output_type": "execute_result"
+    }
+   ],
+   "source": [
+    "bezybtochno = BUDGET /PRICE/OIL\n",
+    "bezybtochno"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Вывод: для оценки возможной прибыли необходимо также оценить объемы запасов сырья в скважинах. Сравнение этих объемов с безубыточным количеством позволит сделать вывод о том, насколько рентабельна добыча в данном регионе. В случае, если безубыточный объем значительно превышает доступные запасы, добыча может оказаться нецелесообразной."
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 69,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "def rachet(target, predictions, cost, count):\n",
+    "    probs_sorted = predictions.sort_values(ascending=False)\n",
+    "    deposits = target[probs_sorted.index][:count]\n",
+    "    return cost * deposits.sum() - BUDGET "
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "## Расчёт прибыли и рисков "
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 76,
+   "metadata": {},
+   "outputs": [],
+   "source": [
+    "state = np.random.RandomState(12345)"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 80,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Средняя выручка 422107752.98940814\n",
+      "Риск того, что будет убыточно 5.4\n"
+     ]
+    }
+   ],
+   "source": [
+    "values = []\n",
+    "for i in range(500):\n",
+    "    targetsome = target_valid.sample(replace = True, random_state = state, n = POINT)\n",
+    "    predictionsome = new_predictions[targetsome.index]\n",
+    "    values.append(rachet(targetsome,predictionsome,PRICE, BEST_POINT))\n",
+    "\n",
+    "values = pd.Series(values)\n",
+    "print(\"Средняя выручка\", values.mean())\n",
+    "print(\"Риск того, что будет убыточно\", st.percentileofscore(values, 0))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 81,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Средняя выручка 478368625.9040908\n",
+      "Риск того, что будет убыточно 1.2\n"
+     ]
+    }
+   ],
+   "source": [
+    "\n",
+    "\n",
+    "values = []\n",
+    "for i in range(500):\n",
+    "    targetsome = target_valid1.sample(replace = True, random_state = state, n = POINT)\n",
+    "    predictionsome = new_predictions1[targetsome.index]\n",
+    "    values.append(rachet(targetsome,predictionsome,PRICE, BEST_POINT))\n",
+    "\n",
+    "values = pd.Series(values)\n",
+    "print(\"Средняя выручка\", values.mean())\n",
+    "print(\"Риск того, что будет убыточно\", st.percentileofscore(values, 0))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 82,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Средняя выручка 397394354.2411781\n",
+      "Риск того, что будет убыточно 9.2\n"
+     ]
+    }
+   ],
+   "source": [
+    "\n",
+    "values = []\n",
+    "for i in range(500):\n",
+    "    targetsome = target_valid2.sample(replace = True, random_state = state, n = POINT)\n",
+    "    predictionsome = new_predictions2[targetsome.index]\n",
+    "    values.append(rachet(targetsome,predictionsome,PRICE, BEST_POINT))\n",
+    "\n",
+    "values = pd.Series(values)\n",
+    "print(\"Средняя выручка\", values.mean())\n",
+    "print(\"Риск того, что будет убыточно\", st.percentileofscore(values, 0))"
+   ]
+  },
+  {
+   "cell_type": "code",
+   "execution_count": 83,
+   "metadata": {},
+   "outputs": [
+    {
+     "name": "stdout",
+     "output_type": "stream",
+     "text": [
+      "Среднее значение запасов для региона 1 = 92.5\n",
+      "Среднее значение запасов для региона 2 = 90.42\n",
+      "Среднее значение запасов для региона 3 = 64.57\n"
+     ]
+    }
+   ],
+   "source": [
+    "for n, t in enumerate([target, target1, target2], start=1):\n",
+    "    print(f'Среднее значение запасов для региона {n} = {np.round(t.mean(), 2)}')"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Вывод: несмотря на то, что объемы запасов второго региона не являются самыми высокими, именно в этом регионе наиболее низкий риск убытков. Следовательно, второй регион стоит рассматривать для дальнейшего развития и добычи сырья."
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "**Общий вывод**"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Известно, что в исходных данных отсутствуют пропуски, дубликаты и другие необходимые для удаления объекты. Однако, в связи с тем, что столбец ID не являлся необходимым для проведения анализа, его было решено удалить. \n",
+    "\n",
+    "Для использования модели линейной регрессии было необходимо привести данные к единому масштабу и были получены следующие результаты:"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "1 регион:\n",
+    "\n",
+    "RMSE = 37.61893312647744\n",
+    "\n",
+    "средний запас предсказанного сырья 92.67746991590556\n",
+    "\n",
+    "2 регион:\n",
+    "\n",
+    "RMSE = 0.8915393978719801\n",
+    "\n",
+    "средний запас предсказанного сырья 68.93047860154672\n",
+    "\n",
+    "3 регион:\n",
+    "\n",
+    "RMSE = 39.97593851112621\n",
+    "\n",
+    "средний запас предсказанного сырья 95.02403363016232"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Наиболее точные предсказания были получены на втором датасете. Однако, показатели RMSE на первом и третьем датасетах были достаточно высокими, что указывает на большую разницу между предсказанными и фактическими значениями.\n",
+    "\n",
+    "Далее были проведены расчеты средней выручки, средних объемов и рисков для каждого региона. Полученные данные были следующие:"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "1 регион:\n",
+    "\n",
+    "Средняя выручка: 423548023.4395234\n",
+    "\n",
+    "95%-й Доверительный интервал: -61524112.122806355 - 935574599.8214369\n",
+    "\n",
+    "Риск убытков: 5.4\n",
+    "\n",
+    "Среднее значение обьема скважин 1 92.49999999999974\n",
+    "\n",
+    "2 регион:\n",
+    "\n",
+    "Средняя выручка: 468961523.13852865\n",
+    "\n",
+    "95%-й Доверительный интервал: 1014762.400000908 - 883639724.7693166\n",
+    "\n",
+    "Риск убытков: 2.5\n",
+    "\n",
+    "Среднее значение обьема скважин 2 68.82500000002561\n",
+    "\n",
+    "3 регион:\n",
+    "\n",
+    "Средняя выручка: 387641870.47230387\n",
+    "\n",
+    "95%-й Доверительный интервал: -158994131.41060394 - 910565805.2435797\n",
+    "\n",
+    "Риск убытков: 7.0\n",
+    "\n",
+    "Среднее значение обьема скважин 3 95.00000000000041\n"
+   ]
+  },
+  {
+   "cell_type": "markdown",
+   "metadata": {},
+   "source": [
+    "Несмотря на то, что запасы сырья во втором регионе не являются максимальными среди рассматриваемых регионов, он имеет наименьший риск убытков. Именно поэтому этот регион наиболее подходит для разработки."
+   ]
+  }
+ ],
+ "metadata": {
+  "ExecuteTimeLog": [
+   {
+    "duration": 1572,
+    "start_time": "2023-01-30T23:39:38.093Z"
+   },
+   {
+    "duration": 539,
+    "start_time": "2023-01-30T23:39:39.667Z"
+   },
+   {
+    "duration": 273,
+    "start_time": "2023-01-30T23:39:40.208Z"
+   },
+   {
+    "duration": 206,
+    "start_time": "2023-01-30T23:39:40.483Z"
+   },
+   {
+    "duration": 16,
+    "start_time": "2023-01-30T23:39:40.690Z"
+   },
+   {
+    "duration": 9,
+    "start_time": "2023-01-30T23:39:40.708Z"
+   },
+   {
+    "duration": 27,
+    "start_time": "2023-01-30T23:39:40.719Z"
+   },
+   {
+    "duration": 49,
+    "start_time": "2023-01-30T23:39:40.748Z"
+   },
+   {
+    "duration": 45,
+    "start_time": "2023-01-30T23:39:40.798Z"
+   },
+   {
+    "duration": 50,
+    "start_time": "2023-01-30T23:39:40.846Z"
+   },
+   {
+    "duration": 43,
+    "start_time": "2023-01-30T23:39:40.897Z"
+   },
+   {
+    "duration": 27,
+    "start_time": "2023-01-30T23:39:40.941Z"
+   },
+   {
+    "duration": 26,
+    "start_time": "2023-01-30T23:39:40.970Z"
+   },
+   {
+    "duration": 37,
+    "start_time": "2023-01-30T23:39:40.997Z"
+   },
+   {
+    "duration": 11,
+    "start_time": "2023-01-30T23:39:41.040Z"
+   },
+   {
+    "duration": 17,
+    "start_time": "2023-01-30T23:39:41.053Z"
+   },
+   {
+    "duration": 11,
+    "start_time": "2023-01-30T23:39:41.071Z"
+   },
+   {
+    "duration": 7,
+    "start_time": "2023-01-30T23:39:41.084Z"
+   },
+   {
+    "duration": 19,
+    "start_time": "2023-01-30T23:39:41.093Z"
+   },
+   {
+    "duration": 32,
+    "start_time": "2023-01-30T23:39:41.114Z"
+   },
+   {
+    "duration": 11,
+    "start_time": "2023-01-30T23:39:41.148Z"
+   },
+   {
+    "duration": 16,
+    "start_time": "2023-01-30T23:39:41.160Z"
+   },
+   {
+    "duration": 12,
+    "start_time": "2023-01-30T23:39:41.177Z"
+   },
+   {
+    "duration": 54,
+    "start_time": "2023-01-30T23:39:41.191Z"
+   },
+   {
+    "duration": 110,
+    "start_time": "2023-01-30T23:39:41.246Z"
+   },
+   {
+    "duration": 179,
+    "start_time": "2023-01-30T23:39:41.357Z"
+   },
+   {
+    "duration": 204,
+    "start_time": "2023-01-30T23:39:41.538Z"
+   },
+   {
+    "duration": 8,
+    "start_time": "2023-01-30T23:39:41.744Z"
+   },
+   {
+    "duration": 7,
+    "start_time": "2023-01-30T23:39:41.754Z"
+   },
+   {
+    "duration": 1342,
+    "start_time": "2023-01-30T23:39:41.763Z"
+   },
+   {
+    "duration": 1343,
+    "start_time": "2023-01-30T23:39:43.106Z"
+   },
+   {
+    "duration": 1319,
+    "start_time": "2023-01-30T23:39:44.451Z"
+   },
+   {
+    "duration": 5,
+    "start_time": "2023-01-30T23:39:45.771Z"
+   },
+   {
+    "duration": 50,
+    "start_time": "2023-01-31T11:12:41.423Z"
+   },
+   {
+    "duration": 1504,
+    "start_time": "2023-01-31T11:12:50.571Z"
+   },
+   {
+    "duration": 543,
+    "start_time": "2023-01-31T11:12:52.077Z"
+   },
+   {
+    "duration": 202,
+    "start_time": "2023-01-31T11:12:52.622Z"
+   },
+   {
+    "duration": 203,
+    "start_time": "2023-01-31T11:12:52.826Z"
+   },
+   {
+    "duration": 19,
+    "start_time": "2023-01-31T11:12:53.031Z"
+   },
+   {
+    "duration": 11,
+    "start_time": "2023-01-31T11:12:53.052Z"
+   },
+   {
+    "duration": 13,
+    "start_time": "2023-01-31T11:12:53.064Z"
+   },
+   {
+    "duration": 75,
+    "start_time": "2023-01-31T11:12:53.078Z"
+   },
+   {
+    "duration": 49,
+    "start_time": "2023-01-31T11:12:53.154Z"
+   },
+   {
+    "duration": 84,
+    "start_time": "2023-01-31T11:12:53.206Z"
+   },
+   {
+    "duration": 32,
+    "start_time": "2023-01-31T11:12:53.292Z"
+   },
+   {
+    "duration": 40,
+    "start_time": "2023-01-31T11:12:53.326Z"
+   },
+   {
+    "duration": 33,
+    "start_time": "2023-01-31T11:12:53.368Z"
+   },
+   {
+    "duration": 10,
+    "start_time": "2023-01-31T11:12:53.403Z"
+   },
+   {
+    "duration": 11,
+    "start_time": "2023-01-31T11:12:53.440Z"
+   },
+   {
+    "duration": 20,
+    "start_time": "2023-01-31T11:12:53.453Z"
+   },
+   {
+    "duration": 13,
+    "start_time": "2023-01-31T11:12:53.475Z"
+   },
+   {
+    "duration": 11,
+    "start_time": "2023-01-31T11:12:53.489Z"
+   },
+   {
+    "duration": 40,
+    "start_time": "2023-01-31T11:12:53.502Z"
+   },
+   {
+    "duration": 36,
+    "start_time": "2023-01-31T11:12:53.544Z"
+   },
+   {
+    "duration": 12,
+    "start_time": "2023-01-31T11:12:53.581Z"
+   },
+   {
+    "duration": 18,
+    "start_time": "2023-01-31T11:12:53.595Z"
+   },
+   {
+    "duration": 25,
+    "start_time": "2023-01-31T11:12:53.615Z"
+   },
+   {
+    "duration": 17,
+    "start_time": "2023-01-31T11:12:53.642Z"
+   },
+   {
+    "duration": 195,
+    "start_time": "2023-01-31T11:12:53.661Z"
+   },
+   {
+    "duration": 203,
+    "start_time": "2023-01-31T11:12:53.859Z"
+   },
+   {
+    "duration": 174,
+    "start_time": "2023-01-31T11:12:54.067Z"
+   },
+   {
+    "duration": 9,
+    "start_time": "2023-01-31T11:12:54.244Z"
+   },
+   {
+    "duration": 14,
+    "start_time": "2023-01-31T11:12:54.254Z"
+   },
+   {
+    "duration": 1386,
+    "start_time": "2023-01-31T11:12:54.271Z"
+   },
+   {
+    "duration": 1357,
+    "start_time": "2023-01-31T11:12:55.658Z"
+   },
+   {
+    "duration": 1341,
+    "start_time": "2023-01-31T11:12:57.017Z"
+   },
+   {
+    "duration": 6,
+    "start_time": "2023-01-31T11:12:58.361Z"
+   },
+   {
+    "duration": 12,
+    "start_time": "2023-01-31T11:14:53.296Z"
+   },
+   {
+    "duration": 5,
+    "start_time": "2023-01-31T11:15:12.646Z"
+   },
+   {
+    "duration": 3,
+    "start_time": "2023-01-31T12:31:25.496Z"
+   },
+   {
+    "duration": 4,
+    "start_time": "2023-01-31T12:33:22.503Z"
+   },
+   {
+    "duration": 5487,
+    "start_time": "2023-01-31T12:33:23.386Z"
+   },
+   {
+    "duration": 3,
+    "start_time": "2023-01-31T12:33:39.334Z"
+   },
+   {
+    "duration": 4019,
+    "start_time": "2023-01-31T12:33:40.151Z"
+   },
+   {
+    "duration": 3,
+    "start_time": "2023-01-31T12:33:54.386Z"
+   },
+   {
+    "duration": 1255,
+    "start_time": "2023-01-31T12:33:55.913Z"
+   },
+   {
+    "duration": 7,
+    "start_time": "2023-01-31T12:35:14.439Z"
+   },
+   {
+    "duration": 1284,
+    "start_time": "2023-01-31T12:35:26.842Z"
+   },
+   {
+    "duration": 4,
+    "start_time": "2023-01-31T12:35:38.281Z"
+   },
+   {
+    "duration": 6,
+    "start_time": "2023-01-31T12:36:47.590Z"
+   },
+   {
+    "duration": 3,
+    "start_time": "2023-01-31T12:41:05.067Z"
+   },
+   {
+    "duration": 9,
+    "start_time": "2023-01-31T12:41:47.745Z"
+   },
+   {
+    "duration": 5,
+    "start_time": "2023-01-31T12:42:02.370Z"
+   },
+   {
+    "duration": 7,
+    "start_time": "2023-01-31T12:43:00.141Z"
+   },
+   {
+    "duration": 1642,
+    "start_time": "2023-01-31T21:44:21.441Z"
+   },
+   {
+    "duration": 520,
+    "start_time": "2023-01-31T21:44:23.085Z"
+   },
+   {
+    "duration": 206,
+    "start_time": "2023-01-31T21:44:23.606Z"
+   },
+   {
+    "duration": 198,
+    "start_time": "2023-01-31T21:44:23.814Z"
+   },
+   {
+    "duration": 23,
+    "start_time": "2023-01-31T21:44:24.014Z"
+   },
+   {
+    "duration": 36,
+    "start_time": "2023-01-31T21:44:24.039Z"
+   },
+   {
+    "duration": 19,
+    "start_time": "2023-01-31T21:44:24.077Z"
+   },
+   {
+    "duration": 74,
+    "start_time": "2023-01-31T21:44:24.097Z"
+   },
+   {
+    "duration": 60,
+    "start_time": "2023-01-31T21:44:24.177Z"
+   },
+   {
+    "duration": 74,
+    "start_time": "2023-01-31T21:44:24.241Z"
+   },
+   {
+    "duration": 35,
+    "start_time": "2023-01-31T21:44:24.317Z"
+   },
+   {
+    "duration": 53,
+    "start_time": "2023-01-31T21:44:24.355Z"
+   },
+   {
+    "duration": 34,
+    "start_time": "2023-01-31T21:44:24.410Z"
+   },
+   {
+    "duration": 11,
+    "start_time": "2023-01-31T21:44:24.446Z"
+   },
+   {
+    "duration": 13,
+    "start_time": "2023-01-31T21:44:24.459Z"
+   },
+   {
+    "duration": 11,
+    "start_time": "2023-01-31T21:44:24.502Z"
+   },
+   {
+    "duration": 15,
+    "start_time": "2023-01-31T21:44:24.515Z"
+   },
+   {
+    "duration": 8,
+    "start_time": "2023-01-31T21:44:24.532Z"
+   },
+   {
+    "duration": 24,
+    "start_time": "2023-01-31T21:44:24.543Z"
+   },
+   {
+    "duration": 47,
+    "start_time": "2023-01-31T21:44:24.569Z"
+   },
+   {
+    "duration": 13,
+    "start_time": "2023-01-31T21:44:24.618Z"
+   },
+   {
+    "duration": 13,
+    "start_time": "2023-01-31T21:44:24.633Z"
+   },
+   {
+    "duration": 13,
+    "start_time": "2023-01-31T21:44:24.648Z"
+   },
+   {
+    "duration": 46,
+    "start_time": "2023-01-31T21:44:24.663Z"
+   },
+   {
+    "duration": 116,
+    "start_time": "2023-01-31T21:44:24.710Z"
+   },
+   {
+    "duration": 178,
+    "start_time": "2023-01-31T21:44:24.827Z"
+   },
+   {
+    "duration": 97,
+    "start_time": "2023-01-31T21:44:25.007Z"
+   },
+   {
+    "duration": 7,
+    "start_time": "2023-01-31T21:44:25.107Z"
+   },
+   {
+    "duration": 10,
+    "start_time": "2023-01-31T21:44:25.115Z"
+   },
+   {
+    "duration": 1277,
+    "start_time": "2023-01-31T21:44:25.127Z"
+   },
+   {
+    "duration": 1228,
+    "start_time": "2023-01-31T21:44:26.405Z"
+   },
+   {
+    "duration": 1229,
+    "start_time": "2023-01-31T21:44:27.635Z"
+   },
+   {
+    "duration": 6,
+    "start_time": "2023-01-31T21:44:28.866Z"
+   },
+   {
+    "duration": 1640,
+    "start_time": "2023-02-01T13:44:29.425Z"
+   },
+   {
+    "duration": 417,
+    "start_time": "2023-02-01T13:44:31.067Z"
+   },
+   {
+    "duration": 605,
+    "start_time": "2023-02-01T13:44:31.485Z"
+   },
+   {
+    "duration": 575,
+    "start_time": "2023-02-01T13:44:32.092Z"
+   },
+   {
+    "duration": 17,
+    "start_time": "2023-02-01T13:44:32.670Z"
+   },
+   {
+    "duration": 9,
+    "start_time": "2023-02-01T13:44:32.688Z"
+   },
+   {
+    "duration": 13,
+    "start_time": "2023-02-01T13:44:32.698Z"
+   },
+   {
+    "duration": 64,
+    "start_time": "2023-02-01T13:44:32.713Z"
+   },
+   {
+    "duration": 45,
+    "start_time": "2023-02-01T13:44:32.779Z"
+   },
+   {
+    "duration": 61,
+    "start_time": "2023-02-01T13:44:32.826Z"
+   },
+   {
+    "duration": 28,
+    "start_time": "2023-02-01T13:44:32.888Z"
+   },
+   {
+    "duration": 49,
+    "start_time": "2023-02-01T13:44:32.918Z"
+   },
+   {
+    "duration": 28,
+    "start_time": "2023-02-01T13:44:32.969Z"
+   },
+   {
+    "duration": 9,
+    "start_time": "2023-02-01T13:44:32.999Z"
+   },
+   {
+    "duration": 16,
+    "start_time": "2023-02-01T13:44:33.009Z"
+   },
+   {
+    "duration": 10,
+    "start_time": "2023-02-01T13:44:33.045Z"
+   },
+   {
+    "duration": 16,
+    "start_time": "2023-02-01T13:44:33.057Z"
+   },
+   {
+    "duration": 11,
+    "start_time": "2023-02-01T13:44:33.075Z"
+   },
+   {
+    "duration": 18,
+    "start_time": "2023-02-01T13:44:33.087Z"
+   },
+   {
+    "duration": 13,
+    "start_time": "2023-02-01T13:44:33.107Z"
+   },
+   {
+    "duration": 9,
+    "start_time": "2023-02-01T13:44:33.122Z"
+   },
+   {
+    "duration": 18,
+    "start_time": "2023-02-01T13:44:33.133Z"
+   },
+   {
+    "duration": 12,
+    "start_time": "2023-02-01T13:44:33.153Z"
+   },
+   {
+    "duration": 9,
+    "start_time": "2023-02-01T13:44:33.166Z"
+   },
+   {
+    "duration": 12,
+    "start_time": "2023-02-01T13:44:33.177Z"
+   },
+   {
+    "duration": 106,
+    "start_time": "2023-02-01T13:44:33.246Z"
+   },
+   {
+    "duration": 96,
+    "start_time": "2023-02-01T13:44:33.354Z"
+   },
+   {
+    "duration": 198,
+    "start_time": "2023-02-01T13:44:33.452Z"
+   },
+   {
+    "duration": 7,
+    "start_time": "2023-02-01T13:44:33.651Z"
+   },
+   {
+    "duration": 7,
+    "start_time": "2023-02-01T13:44:33.660Z"
+   },
+   {
+    "duration": 1338,
+    "start_time": "2023-02-01T13:44:33.669Z"
+   },
+   {
+    "duration": 1190,
+    "start_time": "2023-02-01T13:44:35.008Z"
+   },
+   {
+    "duration": 1209,
+    "start_time": "2023-02-01T13:44:36.200Z"
+   },
+   {
+    "duration": 5,
+    "start_time": "2023-02-01T13:44:37.411Z"
+   }
+  ],
+  "kernelspec": {
+   "display_name": "Python 3 (ipykernel)",
+   "language": "python",
+   "name": "python3"
+  },
+  "language_info": {
+   "codemirror_mode": {
+    "name": "ipython",
+    "version": 3
+   },
+   "file_extension": ".py",
+   "mimetype": "text/x-python",
+   "name": "python",
+   "nbconvert_exporter": "python",
+   "pygments_lexer": "ipython3",
+   "version": "3.9.7"
+  },
+  "toc": {
+   "base_numbering": 1,
+   "nav_menu": {},
+   "number_sections": true,
+   "sideBar": true,
+   "skip_h1_title": true,
+   "title_cell": "Table of Contents",
+   "title_sidebar": "Contents",
+   "toc_cell": false,
+   "toc_position": {},
+   "toc_section_display": true,
+   "toc_window_display": false
+  }
+ },
+ "nbformat": 4,
+ "nbformat_minor": 2
+}
